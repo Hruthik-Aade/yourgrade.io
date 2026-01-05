@@ -1,0 +1,107 @@
+{
+  "entities": {
+    "User": {
+      "$schema": "http://json-schema.org/draft-07/schema#",
+      "title": "User",
+      "type": "object",
+      "description": "Represents a user account in the yourgrade.io application.",
+      "properties": {
+        "id": {
+          "type": "string",
+          "description": "Unique identifier for the user entity."
+        },
+        "email": {
+          "type": "string",
+          "description": "The user's email address.",
+          "format": "email"
+        },
+        "firstName": {
+          "type": "string",
+          "description": "The first name of the user."
+        },
+        "lastName": {
+          "type": "string",
+          "description": "The last name of the user."
+        }
+      },
+      "required": [
+        "id",
+        "email",
+        "firstName",
+        "lastName"
+      ]
+    }
+  },
+  "auth": {
+    "providers": [
+      "password",
+      "anonymous",
+      "google.com"
+    ]
+  },
+  "firestore": {
+    "structure": [
+      {
+        "path": "/users/{userId}",
+        "definition": {
+          "entityName": "User",
+          "schema": {
+            "$ref": "#/backend/entities/User"
+          },
+          "description": "Stores user profile information. This collection is path-based, ensuring that only the authenticated user can access their profile data.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user.  Matches request.auth.uid."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/semesters/{semesterId}",
+        "definition": {
+          "entityName": "Semester",
+          "schema": {
+            "$ref": "#/backend/entities/Semester"
+          },
+          "description": "Stores semester-wise academic data for each user. This collection is path-based, ensuring that only the authenticated user can access their semester data.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user. Matches request.auth.uid."
+            },
+            {
+              "name": "semesterId",
+              "description": "The unique identifier of the semester."
+            }
+          ]
+        }
+      },
+      {
+        "path": "/users/{userId}/semesters/{semesterId}/subjects/{subjectId}",
+        "definition": {
+          "entityName": "Subject",
+          "schema": {
+            "$ref": "#/backend/entities/Subject"
+          },
+          "description": "Stores subject-specific information for each semester. This collection is path-based, ensuring that only the authenticated user can access their subject data.",
+          "params": [
+            {
+              "name": "userId",
+              "description": "The unique identifier of the user. Matches request.auth.uid."
+            },
+            {
+              "name": "semesterId",
+              "description": "The unique identifier of the semester."
+            },
+            {
+              "name": "subjectId",
+              "description": "The unique identifier of the subject."
+            }
+          ]
+        }
+      }
+    ],
+    "reasoning": "The Firestore data structure is designed to support the yourgrade.io application, focusing on secure user data management, efficient GPA/CGPA calculations, and AI-powered features. The structure prioritizes authorization independence and follows a path-based ownership model for user-specific data. This eliminates the need for complex security rules with `get()` calls, ensuring atomic operations and easy debugging.\n\nAuthorization Independence is achieved by storing all subjects, semesters and grades in collections owned by the user. There is no dependency on parent documents. This facilitates easier data retrieval and manipulation without compromising security.\n\nThe structure supports the QAPs by using path-based ownership, ensuring that only the user can access their own data, facilitating secure list operations without the need for complex filtering in rules. Each user has their own data collections, guaranteeing data privacy and security.\n\nThis design adheres to a structural segregation, ensuring all documents in a collection share the same security requirements. For example, all documents within the `/users/{userId}/semesters/{semesterId}/subjects/{subjectId}` collection have the same access controls, simplifying security rule management. The design utilizes consistent naming conventions and explicit state modeling for enhanced debuggability."
+  }
+}

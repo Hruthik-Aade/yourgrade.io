@@ -1,0 +1,131 @@
+/**
+ * Core Philosophy: This ruleset enforces a strict user-ownership model where all
+ * user-generated data is stored in a private data tree. Access is determined by
+ * the path structure, ensuring a user can only ever access documents that exist
+ * under their own unique user ID. This approach eliminates the need for complex
+ * lookups (get() calls) in rules, resulting in a highly secure, performant, and
+ * easy-to-maintain system.
+ *
+ * Data Structure: All data is nested hierarchically under the top-level `/users`
+ * collection. The structure follows the pattern: /users/{userId}/{subcollection}/{docId}.
+ * This ensures that every piece of data has a clear and explicit owner based on
+ * the `{userId}` in its path.
+ *
+ * Key Security Decisions:
+ * - User Enumeration Blocked: Listing the top-level `/users` collection is
+ *   explicitly forbidden to prevent attackers from discovering the full list of
+ *   application users.
+ * - Strict Path-Based Ownership: A user's authenticated UID must match the
+ *   `{userId}` wildcard in the document path for any access to be granted.
+ * - Relational Integrity: For the core user profile document, the internal `id`
+ *   field must match the document ID (`userId`) on creation and remain immutable
+ *   afterward, ensuring a permanent link between the document and its owner.
+ * - Default Deny: All operations are denied by default unless explicitly permitted
+ *   by a rule.
+ */
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    //-------------------------------------------------------------------------
+    // Helper Functions
+    //-------------------------------------------------------------------------
+
+    /**
+     * Checks if the user is authenticated.
+     */
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    /**
+     * Validates if the requesting user is the owner of the document based on
+     * the userId captured in the path.
+     */
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    /**
+     * A robust check for state-changing operations (update, delete) that
+     * ensures the user is the owner AND the document actually exists.
+     * This prevents unauthorized changes to non-existent data.
+     */
+    function isExistingOwner(userId) {
+      return isOwner(userId) && resource != null;
+    }
+    
+    /**
+     * On create, validates that the user document's internal `id` field
+     * correctly matches its document ID (`userId`), establishing the
+     * critical link between the data and the owner's identity.
+     */
+    function isCreatingValidUser(userId) {
+    	return request.resource.data.id == userId;
+    }
+    
+    /**
+     * On update, ensures that the user document's internal `id` field
+     * is immutable. This prevents the document's ownership from ever being changed.
+     */
+    function isUpdatingValidUser() {
+    	return request.resource.data.id == resource.data.id;
+    }
+
+    //-------------------------------------------------------------------------
+    // Collection Rules
+    //-------------------------------------------------------------------------
+
+    /**
+     * @description Manages user profile documents.
+     * @path /users/{userId}
+     * @allow (get) A user can read their own profile.
+     * @allow (create) A new user can create their own profile document.
+     * @allow (update) A user can update their own profile.
+     * @deny (list) No user can list all user profiles in the database.
+     * @deny (get) A user cannot read another user's profile.
+     * @principle Restricts access to a user's own data tree and validates relational integrity.
+     */
+    match /users/{userId} {
+      allow get: if isOwner(userId);
+      allow list: if false;
+      allow create: if isOwner(userId) && isCreatingValidUser(userId);
+      allow update: if isExistingOwner(userId) && isUpdatingValidUser();
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Manages semester data, nested under a specific user.
+     * @path /users/{userId}/semesters/{semesterId}
+     * @allow (create) A user can create a new semester document for themselves.
+     * @allow (get, list) A user can read and list their own semester documents.
+     * @allow (update, delete) A user can modify or delete their own semester documents.
+     * @deny (get) A user cannot read semesters belonging to another user.
+     * @principle Enforces strict data ownership for all operations via path-based security.
+     */
+    match /users/{userId}/semesters/{semesterId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+
+    /**
+     * @description Manages subject data for a specific semester, nested under a user.
+     * @path /users/{userId}/semesters/{semesterId}/subjects/{subjectId}
+     * @allow (create) A user can create a new subject for one of their semesters.
+     * @allow (get, list) A user can read and list their own subjects.
+     * @allow (update, delete) A user can modify or delete their own subjects.
+     * @deny (get) A user cannot access subjects belonging to another user.
+     * @principle Enforces strict data ownership through nested path-based security.
+     */
+    match /users/{userId}/semesters/{semesterId}/subjects/{subjectId} {
+      allow get: if isOwner(userId);
+      allow list: if isOwner(userId);
+      allow create: if isOwner(userId);
+      allow update: if isExistingOwner(userId);
+      allow delete: if isExistingOwner(userId);
+    }
+  }
+}
