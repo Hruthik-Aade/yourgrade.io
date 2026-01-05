@@ -232,7 +232,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## 🙋 Support
 
-- 📧 Email: support@yourgrade.io
+- 📧 Email: hruthikchandra.aade@gmail.com
 - 🐛 Issues: [GitHub Issues](https://github.com/Hruthik-Aade/yourgrade.io/issues)
 - 💬 Discussions: [GitHub Discussions](https://github.com/Hruthik-Aade/yourgrade.io/discussions)
 
