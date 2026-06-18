@@ -71,6 +71,7 @@ export function SemesterView({ semester, studentData }: SemesterViewProps) {
   const [isEditSemOpen, setIsEditSemOpen] = useState(false);
   const [newSemesterName, setNewSemesterName] = useState(semester.name);
   const [dropdownOpen, setDropdownOpen] = useState<string | null>(null);
+  const [subjectToDelete, setSubjectToDelete] = useState<Subject | null>(null);
 
   const handleEdit = (subject: Subject) => {
     setEditingSubject(subject);
@@ -85,6 +86,18 @@ export function SemesterView({ semester, studentData }: SemesterViewProps) {
 
   const handleDeleteSemester = () => {
     studentData.deleteSemester(semester.id);
+  };
+
+  const requestDeleteSubject = (subject: Subject) => {
+    setDropdownOpen(null);
+    setSubjectToDelete(subject);
+  };
+
+  const handleDeleteSubject = () => {
+    if (!subjectToDelete) return;
+    studentData.deleteSubject(semester.id, subjectToDelete.id);
+    setSubjectToDelete(null);
+    setDropdownOpen(null);
   };
 
   const handleUpdateSemesterName = () => {
@@ -102,6 +115,12 @@ export function SemesterView({ semester, studentData }: SemesterViewProps) {
       case 'ABS': return "bg-orange-500/15 text-orange-700 hover:bg-orange-500/25 border-orange-200";
       default: return "bg-slate-100 text-slate-700 border-slate-200";
     }
+  };
+
+  const formatMarks = (subject: Subject) => {
+    if (subject.marks === undefined || subject.marks === null) return '—';
+    const maxMarks = subject.maxMarks ?? 100;
+    return maxMarks === 100 ? subject.marks : `${subject.marks}/${maxMarks}`;
   };
 
   return (
@@ -131,7 +150,7 @@ export function SemesterView({ semester, studentData }: SemesterViewProps) {
                     {subject.credits}
                   </TableCell>
                   <TableCell className="text-center font-mono">
-                    {subject.marks ?? '—'}
+                    {formatMarks(subject)}
                   </TableCell>
                   <TableCell className="text-center">
                     <Tooltip>
@@ -171,33 +190,12 @@ export function SemesterView({ semester, studentData }: SemesterViewProps) {
                           <Pencil className="mr-2 h-4 w-4" /> Edit Subject
                         </DropdownMenuItem>
                         <DropdownMenuSeparator />
-                        <AlertDialog>
-                          <AlertDialogTrigger asChild>
-                            <DropdownMenuItem
-                              className="text-destructive focus:text-destructive"
-                              onSelect={e => e.preventDefault()}
-                            >
-                              <Trash2 className="mr-2 h-4 w-4" /> Delete
-                            </DropdownMenuItem>
-                          </AlertDialogTrigger>
-                          <AlertDialogContent>
-                            <AlertDialogHeader>
-                              <AlertDialogTitle>Are you sure?</AlertDialogTitle>
-                              <AlertDialogDescription>
-                                This will permanently delete the subject "{subject.name}".
-                              </AlertDialogDescription>
-                            </AlertDialogHeader>
-                            <AlertDialogFooter>
-                              <AlertDialogCancel>Cancel</AlertDialogCancel>
-                              <AlertDialogAction
-                                className="bg-destructive hover:bg-destructive/90"
-                                onClick={() => studentData.deleteSubject(semester.id, subject.id)}
-                              >
-                                Delete
-                              </AlertDialogAction>
-                            </AlertDialogFooter>
-                          </AlertDialogContent>
-                        </AlertDialog>
+                        <DropdownMenuItem
+                          className="text-destructive focus:text-destructive"
+                          onClick={() => requestDeleteSubject(subject)}
+                        >
+                          <Trash2 className="mr-2 h-4 w-4" /> Delete
+                        </DropdownMenuItem>
                       </DropdownMenuContent>
                     </DropdownMenu>
                   </TableCell>
@@ -297,8 +295,34 @@ export function SemesterView({ semester, studentData }: SemesterViewProps) {
         semesterId={semester.id}
         editingSubject={editingSubject}
       />
+      <AlertDialog
+        open={!!subjectToDelete}
+        onOpenChange={(open) => {
+          if (!open) {
+            setSubjectToDelete(null);
+            setDropdownOpen(null);
+          }
+        }}
+      >
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Subject?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the subject "{subjectToDelete?.name}".
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive hover:bg-destructive/90"
+              onClick={handleDeleteSubject}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
     </TooltipProvider>
   );
 }
-

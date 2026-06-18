@@ -26,13 +26,31 @@ export type ExtractSemesterDataInput = z.infer<typeof ExtractSemesterDataInputSc
 
 const ExtractedSubjectSchema = z.object({
   name: z.string().describe('The name of the subject or course.'),
-  credits: z.number().describe('The number of credits for the subject.'),
+  credits: z
+    .number()
+    .describe(
+      'The number of credits for the subject. Use 0 for audit or non-credit rows shown with "-" credits.'
+    ),
   marks: z
     .number()
     .optional()
     .describe(
-      'The marks obtained out of 100. Should be present if status is PASS.'
+      'The marks obtained. Should be present for credit-bearing PASS rows when visible.'
     ),
+  maxMarks: z
+    .number()
+    .optional()
+    .describe(
+      'The maximum possible marks for the subject, for example 50 or 100. Omit if it is not visible.'
+    ),
+  letterGrade: z
+    .string()
+    .optional()
+    .describe('The printed letter grade, such as A+, A++, C, RA, or "-".'),
+  gradePoint: z
+    .number()
+    .optional()
+    .describe('The printed grade point. Omit when the grade point is "-".'),
   status: z
     .enum(['PASS', 'RA', 'AAA', 'W', 'ABS'])
     .describe(
@@ -78,9 +96,14 @@ const prompt = ai.definePrompt({
 
 For each subject, extract the following:
 1.  **name**: The full name of the subject.
-2.  **credits**: The credit value.
-3.  **marks**: The numerical marks (out of 100). This can be omitted if not present.
-4.  **status**: The final status. Must be one of 'PASS', 'RA' (Re-appear), 'AAA' (Absent), 'W' (Withdrawn), or 'ABS' (Absent). If marks are below 50, the status should be 'RA'. If the subject is passed but no marks are given, the status is 'PASS'.
+2.  **credits**: The credit value. If the row shows "-" for credits, use 0.
+3.  **marks**: The numerical marks obtained. This can be omitted if not present.
+4.  **maxMarks**: The maximum possible marks for the subject, such as 50 or 100. If the result shows "38/50", marks should be 38 and maxMarks should be 50. Omit this if the maximum is not visible.
+5.  **letterGrade**: The printed letter grade. If the row shows "-", use "-".
+6.  **gradePoint**: The printed grade point. If the row shows "-", omit this field.
+7.  **status**: The final status from the printed Result column. Must be one of 'PASS', 'RA' (Re-appear), 'AAA' (Absent), 'W' (Withdrawn), or 'ABS' (Absent). Convert "Pass" to "PASS". Prefer the explicit result printed in the sheet. Do not mark a subject as RA only because raw marks are below 50; a 50-mark paper can have marks below 50 and still be PASS. If no status is visible, infer it from marks divided by maxMarks when possible.
+
+For Sathyabama-style grade sheets, use the table columns "Marks Secured", "Max Marks", "Credits", "Letter Grade", "Grade Point", and "Result". Non-credit audit courses with "-" marks, "-" max marks, "-" credits, and Result "Pass" should still be returned with credits 0 and status "PASS"; they should not affect GPA.
 
 Analyze the provided data:
 {{#if text}}

@@ -4,7 +4,8 @@ export type Subject = {
   id: string;
   name: string;
   credits: number;
-  marks?: number;
+  marks?: number | null;
+  maxMarks?: number | null;
   status: SubjectStatus;
   gradePoint: number;
   letterGrade: string;

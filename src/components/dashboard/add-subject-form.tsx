@@ -36,28 +36,38 @@ import type { Subject, SubjectStatus } from '@/lib/types';
 const subjectSchema = z
   .object({
     name: z.string().min(1, 'Subject name is required.'),
-    credits: z.coerce.number().min(1, 'Credits must be at least 1.'),
+    credits: z.coerce.number().min(0, 'Credits cannot be negative.'),
+    maxMarks: z.coerce
+      .number()
+      .min(1, 'Max marks must be at least 1.')
+      .max(1000, 'Max marks must be 1,000 or less.'),
     marks: z.preprocess(
       (val) => (val === '' ? undefined : val),
-      z.coerce.number().min(0).max(100).optional()
+      z.coerce.number().min(0).max(1000).optional()
     ),
     status: z.enum(['PASS', 'RA', 'AAA', 'W', 'ABS']),
   })
-  .refine(
-    (data) => {
-      if (
-        data.status === 'PASS' &&
-        (data.marks === undefined || data.marks === null)
-      ) {
-        return false;
-      }
-      return true;
-    },
-    {
-      message: 'Marks are required when status is PASS.',
-      path: ['marks'],
+  .superRefine((data, ctx) => {
+    if (
+      data.status === 'PASS' &&
+      data.credits > 0 &&
+      (data.marks === undefined || data.marks === null)
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Marks are required for credit-bearing PASS subjects.',
+        path: ['marks'],
+      });
     }
-  );
+
+    if (data.marks !== undefined && data.marks > data.maxMarks) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Marks cannot be greater than max marks.',
+        path: ['marks'],
+      });
+    }
+  });
 
 type AddSubjectFormProps = {
   isOpen: boolean;
@@ -81,6 +91,7 @@ export function AddSubjectForm({
     defaultValues: {
       name: '',
       credits: 3, // Changed default to 3 (common standard)
+      maxMarks: 100,
       marks: undefined,
       status: 'PASS',
     },
@@ -88,6 +99,7 @@ export function AddSubjectForm({
 
   const status = form.watch('status');
   const marks = form.watch('marks');
+  const maxMarks = form.watch('maxMarks');
 
   // Clear marks if status changes from PASS
   useEffect(() => {
@@ -103,13 +115,15 @@ export function AddSubjectForm({
         form.reset({
           name: editingSubject.name,
           credits: editingSubject.credits,
-          marks: editingSubject.marks,
+          maxMarks: editingSubject.maxMarks ?? 100,
+          marks: editingSubject.marks ?? undefined,
           status: editingSubject.status,
         });
       } else {
         form.reset({
           name: '',
           credits: 3,
+          maxMarks: 100,
           marks: undefined,
           status: 'PASS',
         });
@@ -160,8 +174,8 @@ export function AddSubjectForm({
               )}
             />
 
-            {/* Split Row: Credits & Status */}
-            <div className="grid grid-cols-2 gap-4">
+            {/* Split Row: Credits, max marks, and status */}
+            <div className="grid gap-4 sm:grid-cols-3">
               <FormField
                 control={form.control}
                 name="credits"
@@ -169,7 +183,21 @@ export function AddSubjectForm({
                   <FormItem>
                     <FormLabel>Credits</FormLabel>
                     <FormControl>
-                      <Input type="number" min={1} max={20} {...field} />
+                      <Input type="number" min={0} max={20} {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="maxMarks"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Max Marks</FormLabel>
+                    <FormControl>
+                      <Input type="number" min={1} max={1000} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -184,7 +212,7 @@ export function AddSubjectForm({
                     <FormLabel>Status</FormLabel>
                     <Select
                       onValueChange={field.onChange}
-                      defaultValue={field.value}
+                      value={field.value}
                     >
                       <FormControl>
                         <SelectTrigger>
@@ -212,13 +240,13 @@ export function AddSubjectForm({
                 name="marks"
                 render={({ field }) => (
                   <FormItem className="animate-in fade-in slide-in-from-top-1 duration-200">
-                    <FormLabel>Marks Obtained (0-100)</FormLabel>
+                    <FormLabel>Marks Obtained</FormLabel>
                     <FormControl>
                       <Input
                         type="number"
-                        placeholder="e.g., 85"
+                        placeholder={maxMarks === 50 ? 'e.g., 42' : 'e.g., 85'}
                         min={0}
-                        max={100}
+                        max={maxMarks || 100}
                         {...field}
                         value={field.value ?? ''}
                       />

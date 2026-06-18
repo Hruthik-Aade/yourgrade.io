@@ -145,6 +145,7 @@ export function useStudentData() {
       gradePoint: processed.gradePoint,
       letterGrade: processed.letterGrade,
       marks: processed.marks ?? null,
+      maxMarks: processed.maxMarks ?? null,
     };
 
     addDocumentNonBlocking(subjectsCollection, dataToSave);
@@ -166,6 +167,7 @@ export function useStudentData() {
       gradePoint: processed.gradePoint,
       letterGrade: processed.letterGrade,
       marks: processed.marks ?? null,
+      maxMarks: processed.maxMarks ?? null,
     };
 
     updateDocumentNonBlocking(subjectDoc, dataToSave);

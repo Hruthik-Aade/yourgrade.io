@@ -45,19 +45,27 @@ export function AiImportReview({
   isLoading,
 }: AiImportReviewProps) {
   const [semesterName, setSemesterName] = useState('');
-  const [editedSubjects, setEditedSubjects] =
-    useState<ExtractedSubject[]>(subjects);
+  const [editedSubjects, setEditedSubjects] = useState<ExtractedSubject[]>(
+    () =>
+      subjects.map((subject) => ({
+        ...subject,
+        maxMarks:
+          subject.maxMarks ??
+          (subject.marks !== undefined && subject.marks !== null ? 100 : undefined),
+      }))
+  );
   const [showInfoPopup, setShowInfoPopup] = useState(true);
 
-  const handleSubjectChange = (
+  const handleSubjectChange = <K extends keyof ExtractedSubject>(
     index: number,
-    field: keyof ExtractedSubject,
-    value: string | number | undefined
+    field: K,
+    value: ExtractedSubject[K]
   ) => {
-    const newSubjects = [...editedSubjects];
-    // @ts-ignore
-    newSubjects[index][field] = value;
-    setEditedSubjects(newSubjects);
+    setEditedSubjects((currentSubjects) =>
+      currentSubjects.map((subject, subjectIndex) =>
+        subjectIndex === index ? { ...subject, [field]: value } : subject
+      )
+    );
   };
 
   const handleRemoveSubject = (index: number) => {
@@ -116,11 +124,12 @@ export function AiImportReview({
       <div className="flex-1 overflow-hidden">
         <ScrollArea className="h-full">
             {/* Desktop: Table view (hidden on small screens) */}
-            <Table className="hidden min-w-[600px] sm:table">
+            <Table className="hidden min-w-[700px] sm:table">
               <TableHeader className="sticky top-0 z-10 bg-muted/95 backdrop-blur supports-[backdrop-filter]:bg-muted/60">
                 <TableRow className="hover:bg-transparent">
                   <TableHead className="w-[250px] pl-6">Subject Name</TableHead>
                   <TableHead className="w-[80px] text-center">Credits</TableHead>
+                  <TableHead className="w-[90px] text-center">Max</TableHead>
                   <TableHead className="w-[120px] text-center">Status</TableHead>
                   <TableHead className="w-[80px] text-center">Marks</TableHead>
                   <TableHead className="w-[50px] pr-4"></TableHead>
@@ -146,6 +155,7 @@ export function AiImportReview({
                     <TableCell className="py-2">
                       <Input
                         type="number"
+                        min={0}
                         value={subject.credits}
                         onChange={(e) =>
                           handleSubjectChange(
@@ -156,6 +166,25 @@ export function AiImportReview({
                         }
                         disabled={isLoading}
                         className="h-9 w-16 border-transparent bg-transparent text-center shadow-none hover:bg-muted focus-visible:bg-background focus-visible:ring-1 focus-visible:border-input"
+                      />
+                    </TableCell>
+                    <TableCell className="py-2">
+                      <Input
+                        type="number"
+                        min={1}
+                        max={1000}
+                        value={subject.maxMarks ?? ''}
+                        onChange={(e) =>
+                          handleSubjectChange(
+                            index,
+                            'maxMarks',
+                            e.target.value === ''
+                              ? undefined
+                              : Number(e.target.value)
+                          )
+                        }
+                        disabled={isLoading}
+                        className="h-9 w-20 border-transparent bg-transparent text-center shadow-none hover:bg-muted focus-visible:bg-background focus-visible:ring-1 focus-visible:border-input"
                       />
                     </TableCell>
                     <TableCell className="py-2">
@@ -188,6 +217,7 @@ export function AiImportReview({
                     <TableCell className="py-2">
                       <Input
                         type="number"
+                        min={0}
                         value={subject.marks ?? ''}
                         onChange={(e) =>
                           handleSubjectChange(
@@ -200,6 +230,7 @@ export function AiImportReview({
                         }
                         placeholder="-"
                         disabled={isLoading || subject.status !== 'PASS'}
+                        max={subject.maxMarks ?? 100}
                         className="h-9 w-16 border-transparent bg-transparent text-center shadow-none hover:bg-muted focus-visible:bg-background focus-visible:ring-1 focus-visible:border-input"
                       />
                     </TableCell>
@@ -244,25 +275,58 @@ export function AiImportReview({
                         <Input
                           id={`credits-${index}`}
                           type="number"
+                        min={0}
                           value={subject.credits}
-                          onChange={(e) => handleSubjectChange(index, 'credits', Number(e.target.value))}
+                          onChange={(e) =>
+                            handleSubjectChange(index, 'credits', Number(e.target.value))
+                          }
                           disabled={isLoading}
                           className="h-10 text-center text-base"
                         />
                       </div>
 
+                      {/* Max Marks */}
+                      <div className="space-y-1">
+                        <Label htmlFor={`max-marks-${index}`}>Max Marks</Label>
+                        <Input
+                          id={`max-marks-${index}`}
+                          type="number"
+                          min={1}
+                          max={1000}
+                          value={subject.maxMarks ?? ''}
+                          onChange={(e) =>
+                            handleSubjectChange(
+                              index,
+                              'maxMarks',
+                              e.target.value === ''
+                                ? undefined
+                                : Number(e.target.value)
+                            )
+                          }
+                          disabled={isLoading}
+                          className="h-10 text-center text-base"
+                        />
+                      </div>
+                    </div>
+
+                    <div className="grid gap-4">
                       {/* Status */}
                       <div className="space-y-1">
                         <Label htmlFor={`status-${index}`}>Status</Label>
                         <Select
                           value={subject.status}
-                          onValueChange={(val: Subject['status']) => handleSubjectChange(index, 'status', val)}
+                          onValueChange={(val: Subject['status']) =>
+                            handleSubjectChange(index, 'status', val)
+                          }
                           disabled={isLoading}
                         >
-                          <SelectTrigger id={`status-${index}`} className={cn(
+                          <SelectTrigger
+                            id={`status-${index}`}
+                            className={cn(
                               'h-10 text-base',
                               subject.status === 'PASS' ? 'text-green-600' : 'text-destructive'
-                          )}>
+                            )}
+                          >
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
@@ -278,18 +342,28 @@ export function AiImportReview({
 
                     {/* Marks (Conditional) */}
                     {subject.status === 'PASS' && (
-                        <div className="space-y-1 animate-in fade-in duration-300">
-                            <Label htmlFor={`marks-${index}`}>Marks</Label>
-                            <Input
-                                id={`marks-${index}`}
-                                type="number"
-                                value={subject.marks ?? ''}
-                                onChange={(e) => handleSubjectChange(index, 'marks', e.target.value === '' ? undefined : Number(e.target.value))}
-                                disabled={isLoading}
-                                placeholder="Required"
-                                className="h-10 text-base"
-                            />
-                        </div>
+                      <div className="space-y-1 animate-in fade-in duration-300">
+                        <Label htmlFor={`marks-${index}`}>Marks</Label>
+                        <Input
+                          id={`marks-${index}`}
+                          type="number"
+                          min={0}
+                          max={subject.maxMarks ?? 100}
+                          value={subject.marks ?? ''}
+                          onChange={(e) =>
+                            handleSubjectChange(
+                              index,
+                              'marks',
+                              e.target.value === ''
+                                ? undefined
+                                : Number(e.target.value)
+                            )
+                          }
+                          disabled={isLoading}
+                          placeholder="Required"
+                          className="h-10 text-base"
+                        />
+                      </div>
                     )}
                   </CardContent>
                   <Button
@@ -346,5 +420,3 @@ export function AiImportReview({
     </div>
   );
 }
-
-    

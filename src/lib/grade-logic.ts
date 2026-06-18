@@ -1,41 +1,82 @@
 import type { Semester, Subject, SubjectStatus } from '@/lib/types';
 
+const DEFAULT_MAX_MARKS = 100;
+
+type SubjectInput = Omit<Subject, 'id' | 'gradePoint' | 'letterGrade'> &
+  Partial<Pick<Subject, 'id' | 'gradePoint' | 'letterGrade'>>;
+
+const normaliseMaxMarks = (maxMarks?: number | null): number => {
+  return typeof maxMarks === 'number' && Number.isFinite(maxMarks) && maxMarks > 0
+    ? maxMarks
+    : DEFAULT_MAX_MARKS;
+};
+
+const normaliseToPercentage = (marks: number, maxMarks?: number | null): number => {
+  const safeMaxMarks = normaliseMaxMarks(maxMarks);
+  const percentage = (marks / safeMaxMarks) * 100;
+  return Math.max(0, Math.min(100, percentage));
+};
+
 export const getGradeDetails = (
-  marks: number
+  marks: number,
+  maxMarks: number = DEFAULT_MAX_MARKS
 ): { gradePoint: number; letterGrade: string; status: SubjectStatus } => {
-  if (marks >= 90 && marks <= 100)
+  const percentage = normaliseToPercentage(marks, maxMarks);
+
+  if (percentage >= 90)
     return { gradePoint: 10, letterGrade: 'A++', status: 'PASS' };
-  if (marks >= 80 && marks < 90)
+  if (percentage >= 80)
     return { gradePoint: 9, letterGrade: 'A+', status: 'PASS' };
-  if (marks >= 70 && marks < 80)
+  if (percentage >= 70)
     return { gradePoint: 8, letterGrade: 'B++', status: 'PASS' };
-  if (marks >= 60 && marks < 70)
+  if (percentage >= 60)
     return { gradePoint: 7, letterGrade: 'B+', status: 'PASS' };
-  if (marks >= 50 && marks < 60)
+  if (percentage >= 50)
     return { gradePoint: 6, letterGrade: 'C', status: 'PASS' };
   return { gradePoint: 0, letterGrade: 'RA', status: 'RA' };
 };
 
 export const processSubject = (
-  subject: Omit<Subject, 'id' | 'gradePoint' | 'letterGrade'> & { id?: string }
+  subject: SubjectInput
 ): Subject => {
-  let gradePoint = 0;
-  let letterGrade = '-';
+  const hasMarks = subject.marks !== undefined && subject.marks !== null;
+  const hasExplicitMaxMarks =
+    typeof subject.maxMarks === 'number' &&
+    Number.isFinite(subject.maxMarks) &&
+    subject.maxMarks > 0;
+  const maxMarks = normaliseMaxMarks(subject.maxMarks);
+  const storedMaxMarks = hasExplicitMaxMarks
+    ? subject.maxMarks
+    : hasMarks
+      ? DEFAULT_MAX_MARKS
+      : undefined;
+  const hasOfficialGradePoint =
+    typeof subject.gradePoint === 'number' && Number.isFinite(subject.gradePoint);
+  const hasOfficialLetterGrade =
+    typeof subject.letterGrade === 'string' && subject.letterGrade.trim().length > 0;
+  let gradePoint = hasOfficialGradePoint ? subject.gradePoint! : 0;
+  let letterGrade = hasOfficialLetterGrade ? subject.letterGrade!.trim() : '-';
   let finalStatus = subject.status;
 
-  if (subject.marks !== undefined && subject.marks !== null) {
-    const details = getGradeDetails(subject.marks);
-    gradePoint = details.gradePoint;
-    letterGrade = details.letterGrade;
-    if (details.status === 'RA') {
-      finalStatus = 'RA';
-    } else {
-      finalStatus = 'PASS';
+  if (hasMarks) {
+    const marks = subject.marks as number;
+    const details = getGradeDetails(marks, maxMarks);
+    if (!hasOfficialGradePoint) {
+      gradePoint = details.gradePoint;
+    }
+    if (!hasOfficialLetterGrade) {
+      letterGrade =
+        finalStatus === 'PASS' && details.status === 'RA'
+          ? 'P'
+          : details.letterGrade;
     }
   }
 
   if (finalStatus !== 'PASS') {
     gradePoint = 0;
+    if (!hasOfficialLetterGrade) {
+      letterGrade = finalStatus === 'RA' ? 'RA' : '-';
+    }
   }
 
   return {
@@ -43,6 +84,7 @@ export const processSubject = (
     name: subject.name,
     credits: subject.credits,
     marks: subject.marks,
+    maxMarks: storedMaxMarks,
     status: finalStatus,
     gradePoint: gradePoint,
     letterGrade: letterGrade,
